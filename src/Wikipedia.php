@@ -197,8 +197,7 @@ class Wikipedia
 				return is_array($this->cacheResult) && isset($this->cacheResult["created_at"], $this->cacheResult["data"]) && (strtotime($this->cacheResult["created_at"]) + self::CACHE_EXPIRED) > time() && sha1_file($this->cacheFile) === $checkSum[$this->lang];
 			}
 		}
-		
-		die;
+	
 		return false;
 	}
 
