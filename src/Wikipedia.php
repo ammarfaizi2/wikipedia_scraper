@@ -149,7 +149,7 @@ class Wikipedia
 		$this->hash = sha1($this->query);
 		$this->cacheDir	.= "/".$this->hash;
 		$this->cacheFile = $this->cacheDir."/".$this->lang;
-		$this->checkSumFile = $this->cacheDir."/"."/checksum";
+		$this->checkSumFile = $this->cacheDir."/checksum";
 	}
 
 	/**
