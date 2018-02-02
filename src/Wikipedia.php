@@ -2,18 +2,42 @@
 
 namespace Wikipedia;
 
+/**
+ * @author Ammar Faizi <ammarfaizi2@gmail.com> https://www.facebook.com/ammarfaizi2
+ * @license MIT
+ * @package Wikipedia
+ */
 class Wikipedia
 {
+	/**
+	 * @const array
+	 */
 	const LANGURL = [
 		"en" => "https://en.wikipedia.org/w/index.php?search={{:query}}&title=Special%3ASearch&go=Go"
 	];
 
+	/**
+	 * @var string
+	 */
 	private $lang;
 
+	/**
+	 * @var string
+	 */
 	private $query;
 
+	/**
+	 * @var string
+	 */
 	private $cookieFile;
 
+	/**
+	 * Constructor.
+	 *
+	 * @param string $query
+	 * @param string $lang
+	 * @return void
+	 */
 	public function __construct($query, $lang = "en")
 	{
 		$this->query = $query;
@@ -28,6 +52,12 @@ class Wikipedia
 		}
 	}
 
+	/**
+	 * @throws \Exception
+	 * @param string $url
+	 * @param array  $opt
+	 * @return array
+	 */
 	private function curl($url, $opt = [])
 	{
 		$ch = curl_init($url);
@@ -55,13 +85,17 @@ class Wikipedia
 		];
 	}
 
+	/**
+	 * @return array
+	 */
 	public function search()
 	{
 		$ch = $this->curl(str_replace("{{:query}}", urlencode($this->query), self::LANGURL[$this->lang]));
 		
-		//file_put_contents("a.tmp", $ch['out']);
-		//$ch["info"]["url"] = "https://en.wikipedia.org/wiki/Jack_the_Ripper";
-		//$ch["out"] = file_get_contents("a.tmp");
+		// debug only
+		// file_put_contents("a.tmp", $ch['out']);
+		// $ch["info"]["url"] = "https://en.wikipedia.org/wiki/Jack_the_Ripper";
+		// $ch["out"] = file_get_contents("a.tmp");
 
 		$result = [
 			"title" => "",
@@ -79,7 +113,7 @@ class Wikipedia
 
 		if (preg_match_all("/<div class=\"thumbinner\".+<img.+src=\"(.*\.jpg)\".+>.+<\/div>/Usi", $ch["out"], $matches)) {
 			foreach ($matches[1] as $url) {
-				// $result["photos"][] = "https:".$url;
+				$result["photos"][] = "https:".$url;
 			}
 		}
 		
