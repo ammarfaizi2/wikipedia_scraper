@@ -75,6 +75,13 @@ class Wikipedia
 	];
 
 	/**
+	 * @const
+	 *
+	 * 2592000 = 30 days
+	 */
+	const CACHE_EXPIRED = 2592000;
+
+	/**
 	 * @var string
 	 */
 	private $lang;
@@ -87,7 +94,27 @@ class Wikipedia
 	/**
 	 * @var string
 	 */
+	private $cacheDir;
+
+	/**
+	 * @var string
+	 */
+	private $cacheFile;
+
+	/**
+	 * @var string
+	 */
 	private $cookieFile;
+
+	/**
+	 * @var string
+	 */
+	private $checkSumFile;
+
+	/**
+	 * @var array
+	 */
+	private $cacheResult = [];
 
 	/**
 	 * Constructor.
@@ -102,15 +129,27 @@ class Wikipedia
 		if ($this->query === "") {
 			throw new Exception("Empty query", 1);
 		}
-		$this->lang  = $lang;
+		$this->lang  = strtolower($lang);
 		if (! isset(self::LANGLIST[$this->lang])) {
 			throw new Exception("Invalid language code [{$this->lang}]");
 		}
-		if (is_dir("/tmp") && is_writable("/tmp")) {
+		if (defined("WIKIPEDIA_DATA_DIR")) {
+			is_dir(WIKIPEDIA_DATA_DIR) or mkdir(WIKIPEDIA_DATA_DIR);
+			$this->cacheDir	= WIKIPEDIA_DATA_DIR."/wikipedia_cache";
+			$this->cookieFile = WIKIPEDIA_DATA_DIR."/wikipedia_cookie";
+		} elseif (is_dir("/tmp") && is_writable("/tmp")) {
+			$this->cacheDir	= "/tmp/wikipedia_cache";
 			$this->cookieFile = "/tmp/wikipedia_cookie";
 		} else {
-			$this->cookieFile = getcwd()."/wikipedia_cookie";
+			$cwd = getcwd();
+			$this->cacheDir	= $cwd."/wikipedia_cache";
+			$this->cookieFile = $cwd."/wikipedia_cookie";
 		}
+		is_dir($this->cacheDir) or mkdir($this->cacheDir);
+		$this->hash = sha1($this->query);
+		$this->cacheDir	.= "/".$this->hash;
+		$this->cacheFile = $this->cacheDir."/".$this->lang;
+		$this->checkSumFile = $this->cacheDir."/"."/checksum";
 	}
 
 	/**
@@ -147,10 +186,68 @@ class Wikipedia
 	}
 
 	/**
+	 * @return bool
+	 */
+	private function hasCachedData()
+	{
+		if (is_dir($this->cacheDir) && file_exists($this->cacheFile) && file_exists($this->checkSumFile)) {
+			$checkSum = json_decode(file_get_contents($this->checkSumFile), true);
+			if (isset($checkSum[$this->lang])) {
+				$this->cacheResult = json_decode(file_get_contents($this->cacheFile), true);
+				return is_array($this->cacheResult) && isset($this->cacheResult["created_at"], $this->cacheResult["data"]) && (strtotime($this->cacheResult["created_at"]) + self::CACHE_EXPIRED) > time() && sha1_file($this->cacheFile) === $checkSum[$this->lang];
+			}
+		}
+		
+		die;
+		return false;
+	}
+
+	/**
+	 * @return array
+	 */
+	private function getCachedData()
+	{
+		return $this->cacheResult["data"];
+	}
+
+	/**
+	 * @param array $result
+	 * @return void
+	 */
+	private function writeCache($result)
+	{
+		is_dir($this->cacheDir) or mkdir($this->cacheDir);
+		$handle = fopen($this->cacheFile, "w");
+		flock($handle, LOCK_EX);
+		fwrite($handle, 
+			json_encode(
+				[
+					"created_at" => date("Y-m-d H:i:s"),
+					"data" => $result
+				]
+			)
+		);
+		fclose($handle);
+		$checkSum = json_decode(file_get_contents($this->checkSumFile), true);
+		if (! is_array($checkSum)) {
+			$checkSum = [];
+		}
+		$checkSum[$this->lang] = sha1_file($this->cacheFile);
+		$handle = fopen($this->checkSumFile, "w");
+		flock($handle, LOCK_EX);
+		fwrite($handle, json_encode($checkSum));
+		fclose($handle);
+	}
+
+	/**
 	 * @return array
 	 */
 	public function search()
 	{
+		if ($this->hasCachedData()) {
+			return $this->getCachedData();
+		}
+
 		$ch = $this->curl("https://{$this->lang}.wikipedia.org/w/index.php?search=".urlencode($this->query)."&title=Special%3ASearch&go=Go");
 		
 		// debug only
@@ -176,11 +273,11 @@ class Wikipedia
 			foreach ($matches[1] as $url) {
 				$url = "https:".$url;
 				if (filter_var($url, FILTER_VALIDATE_URL)) {
-					$result["photos"][] = $url;
+					$result["photos"][] = html_entity_decode($url, ENT_QUOTES, 'UTF-8');
 				}
 			}
 		}
-		
+		$this->writeCache($result);
 		return $result;
 	}
 }
