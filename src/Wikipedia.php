@@ -12,8 +12,66 @@ class Wikipedia
 	/**
 	 * @const array
 	 */
-	const LANGURL = [
-		"en" => "https://en.wikipedia.org/w/index.php?search={{:query}}&title=Special%3ASearch&go=Go"
+	const LANGLIST = [
+		"ar" => "العربية",
+		"az" => "Azərbaycanca",
+		"bg" => "Български",
+		"nan" => "Bân-lâm-gú / Hō-ló-oē",
+		"be" => "Беларуская (Акадэмічная)",
+		"ca" => "Català",
+		"cs" => "Čeština",
+		"da" => "Dansk",
+		"de" => "Deutsch",
+		"et" => "Eesti",
+		"el" => "Ελληνικά",
+		"en" => "English",
+		"es" => "Español",
+		"eo" => "Esperanto",
+		"eu" => "Euskara",
+		"fa" => "فارسی",
+		"fr" => "Français",
+		"gl" => "Galego",
+		"ko" => "한국어",
+		"hy" => "Հայերեն",
+		"hi" => "हिन्दी",
+		"hr" => "Hrvatski",
+		"id" => "Bahasa Indonesia",
+		"it" => "Italiano",
+		"he" => "עברית",
+		"ka" => "ქართული",
+		"la" => "Latina",
+		"lt" => "Lietuvių",
+		"hu" => "Magyar",
+		"ms" => "Bahasa Melayu",
+		"min" => "Bahaso Minangkabau",
+		"nl" => "Nederlands",
+		"ja" => "日本語",
+		"no" => "Norsk (Bokmål)",
+		"nn" => "Norsk (Nynorsk)",
+		"ce" => "Нохчийн",
+		"uz" => "Oʻzbekcha / Ўзбекча",
+		"pl" => "Polski",
+		"pt" => "Português",
+		"kk" => "Қазақша / Qazaqşa / قازاقشا",
+		"ro" => "Română",
+		"ru" => "Русский",
+		"simple" => "Simple English",
+		"ceb" => "Sinugboanong Binisaya",
+		"sk" => "Slovenčina",
+		"sl" => "Slovenščina",
+		"sr" => "Српски / Srpski",
+		"sh" => "Srpskohrvatski / Српскохрватски",
+		"fi" => "Suomi",
+		"sv" => "Svenska",
+		"ta" => "தமிழ்",
+		"th" => "ภาษาไทย",
+		"tr" => "Türkçe",
+		"uk" => "Українська",
+		"ur" => "اردو",
+		"vi" => "Tiếng Việt",
+		"vo" => "Volapük",
+		"war" => "Winaray",
+		"zh" => "中文"
 	];
 
 	/**
@@ -40,9 +98,12 @@ class Wikipedia
 	 */
 	public function __construct($query, $lang = "en")
 	{
-		$this->query = $query;
+		$this->query = strtolower(trim($query));
+		if ($this->query === "") {
+			throw new Exception("Empty query", 1);
+		}
 		$this->lang  = $lang;
-		if (! isset(self::LANGURL[$this->lang])) {
+		if (! isset(self::LANGLIST[$this->lang])) {
 			throw new Exception("Invalid language code [{$this->lang}]");
 		}
 		if (is_dir("/tmp") && is_writable("/tmp")) {
@@ -90,7 +151,7 @@ class Wikipedia
 	 */
 	public function search()
 	{
-		$ch = $this->curl(str_replace("{{:query}}", urlencode($this->query), self::LANGURL[$this->lang]));
+		$ch = $this->curl("https://{$this->lang}.wikipedia.org/w/index.php?search=".urlencode($this->query)."&title=Special%3ASearch&go=Go");
 		
 		// debug only
 		// file_put_contents("a.tmp", $ch['out']);
@@ -111,9 +172,12 @@ class Wikipedia
 			$result["prologue"] = $matches[1];
 		}
 
-		if (preg_match_all("/<div class=\"thumbinner\".+<img.+src=\"(.*\.jpg)\".+>.+<\/div>/Usi", $ch["out"], $matches)) {
+		if (preg_match_all("/<div class=\"thumbinner\".+<img.+src=\"(.*)\".+>.+<\/div>/Usi", $ch["out"], $matches)) {
 			foreach ($matches[1] as $url) {
-				$result["photos"][] = "https:".$url;
+				$url = "https:".$url;
+				if (filter_var($url, FILTER_VALIDATE_URL)) {
+					$result["photos"][] = $url;
+				}
 			}
 		}
 		
