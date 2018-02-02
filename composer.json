@@ -10,5 +10,12 @@
         }
     ],
     "minimum-stability": "stable",
-    "require": {}
+    "require": {
+        "curl-ext": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "Wikipedia\\": "src/"
+        }
+    }
 }

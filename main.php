@@ -1,6 +1,7 @@
 <?php
 
-require __DIR__."/src/Wikipedia.php";
+// require __DIR__."/src/Wikipedia.php";
+require __DIR__."/vendor/autoload.php";
 
 
 $query = $argv[1];
