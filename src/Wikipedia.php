@@ -2,6 +2,8 @@
 
 namespace Wikipedia;
 
+use Exception;
+
 /**
  * @author Ammar Faizi <ammarfaizi2@gmail.com> https://www.facebook.com/ammarfaizi2
  * @license MIT
@@ -9,6 +11,11 @@ namespace Wikipedia;
  */
 class Wikipedia
 {
+    /**
+     * @const string
+     */
+    const VERSION = '0.0.1';
+
     /**
      * @const array
      */
@@ -126,28 +133,42 @@ class Wikipedia
     public function __construct($query, $lang = "en")
     {
         $this->query = strtolower(trim($query));
+        
         if ($this->query === "") {
             throw new Exception("Empty query", 1);
         }
-        $this->lang  = strtolower($lang);
+        
+        $this->lang = strtolower(trim($lang));
+
         if (! isset(self::LANGLIST[$this->lang])) {
             throw new Exception("Invalid language code [{$this->lang}]");
         }
+        
         if (defined("WIKIPEDIA_DATA_DIR")) {
             is_dir(WIKIPEDIA_DATA_DIR) or mkdir(WIKIPEDIA_DATA_DIR);
-            $this->cacheDir     = WIKIPEDIA_DATA_DIR."/wikipedia_cache";
+            $this->cacheDir = WIKIPEDIA_DATA_DIR."/wikipedia_cache";
             $this->cookieFile = WIKIPEDIA_DATA_DIR."/wikipedia_cookie";
         } elseif (is_dir("/tmp") && is_writable("/tmp")) {
-            $this->cacheDir     = "/tmp/wikipedia_cache";
+            $this->cacheDir = "/tmp/wikipedia_cache";
             $this->cookieFile = "/tmp/wikipedia_cookie";
         } else {
             $cwd = getcwd();
-            $this->cacheDir     = $cwd."/wikipedia_cache";
+            $this->cacheDir = $cwd."/wikipedia_cache";
             $this->cookieFile = $cwd."/wikipedia_cookie";
         }
+
         is_dir($this->cacheDir) or mkdir($this->cacheDir);
+
+        if (! is_dir($this->cacheDir)) {
+            throw new Exception("Cannot create cache directory [{$this->cacheDir}]");
+        }
+
+        if (! is_writable($this->cacheDir)) {
+            throw new Exception("Cache directory is not writeable [{$this->cacheDir}]");
+        }
+
         $this->hash = sha1($this->query);
-        $this->cacheDir     .= "/".$this->hash;
+        $this->cacheDir .= "/".$this->hash;
         $this->cacheFile = $this->cacheDir."/".$this->lang;
         $this->checkSumFile = $this->cacheDir."/checksum";
     }
@@ -194,7 +215,7 @@ class Wikipedia
             $checkSum = json_decode(file_get_contents($this->checkSumFile), true);
             if (isset($checkSum[$this->lang])) {
                 $this->cacheResult = json_decode(file_get_contents($this->cacheFile), true);
-                return is_array($this->cacheResult) && isset($this->cacheResult["created_at"], $this->cacheResult["data"]) && (strtotime($this->cacheResult["created_at"]) + self::CACHE_EXPIRED) > time() && sha1_file($this->cacheFile) === $checkSum[$this->lang];
+                return isset($this->cacheResult["created_at"], $this->cacheResult["data"]) && (strtotime($this->cacheResult["created_at"]) + self::CACHE_EXPIRED) > time() && sha1_file($this->cacheFile) === $checkSum[$this->lang];
             }
         }
     
@@ -216,6 +237,7 @@ class Wikipedia
     private function writeCache($result)
     {
         is_dir($this->cacheDir) or mkdir($this->cacheDir);
+
         $handle = fopen($this->cacheFile, "w");
         flock($handle, LOCK_EX);
         fwrite(
@@ -224,15 +246,22 @@ class Wikipedia
                 [
                     "created_at" => date("Y-m-d H:i:s"),
                     "data" => $result
-                ]
+                ],
+                JSON_UNESCAPED_SLASHES
             )
         );
         fclose($handle);
-        $checkSum = json_decode(file_get_contents($this->checkSumFile), true);
-        if (! is_array($checkSum)) {
-            $checkSum = [];
+
+        if (file_exists($this->checkSumFile)) {
+            $checkSum = json_decode(file_get_contents($this->checkSumFile), true);
+
+            if (! is_array($checkSum)) {
+                $checkSum = [];
+            }
         }
+
         $checkSum[$this->lang] = sha1_file($this->cacheFile);
+
         $handle = fopen($this->checkSumFile, "w");
         flock($handle, LOCK_EX);
         fwrite($handle, json_encode($checkSum));
@@ -261,8 +290,9 @@ class Wikipedia
             "photos" => [],
             "prologue" => ""
         ];
+
         if (preg_match("/<title>(.*)<\/title>/U", $ch['out'], $matches)) {
-            $result["title"] = html_entity_decode($matches[1], ENT_QUOTES, 'UTF-8');
+            $result["title"] = $matches[1];
         }
 
         if (preg_match("/<\/table>.+<p>(.*)<\/p>/Us", $ch["out"], $matches)) {
@@ -271,13 +301,17 @@ class Wikipedia
 
         if (preg_match_all("/<div class=\"thumbinner\".+<img.+src=\"(.*)\".+>.+<\/div>/Usi", $ch["out"], $matches)) {
             foreach ($matches[1] as $url) {
-                $url = "https:".$url;
+                $url = "https:".html_entity_decode($url, ENT_QUOTES, 'UTF-8');
                 if (filter_var($url, FILTER_VALIDATE_URL)) {
-                    $result["photos"][] = html_entity_decode($url, ENT_QUOTES, 'UTF-8');
+                    $result["photos"][] = $url;
                 }
             }
         }
-        $this->writeCache($result);
+
+        if ($result["title"] !== "" && $result["prologue"] !== "") {
+            $this->writeCache($result);
+        }
+
         return $result;
     }
 }
