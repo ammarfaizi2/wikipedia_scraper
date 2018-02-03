@@ -132,6 +132,8 @@ class Wikipedia
      */
     public function __construct($query, $lang = "en")
     {
+        $query = (string) $query;
+
         $this->query = strtolower(trim($query));
         
         if ($this->query === "") {
