@@ -1,12 +1,10 @@
 # Wikipedia Scraper
 
 ### Usage: 
-
 ```php
 <?php
 
 require __DIR__."/src/Wikipedia.php";
-// require __DIR__."/vendor/autoload.php";
 
 define("WIKIPEDIA_DATA_DIR", __DIR__."/data");
 
@@ -16,6 +14,7 @@ $wiki = $wiki->search();
 
 var_dump($wiki);
 ```
+
 
 
 ### Output:
